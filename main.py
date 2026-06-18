@@ -1,32 +1,81 @@
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
+import random
 import time
 
 creature_pos = np.random.randint(0, 20, size=2)
 food_pos = np.random.randint(0, 20, size=2)
-print(creature_pos, food_pos)
+world_size = (0, 20, 0, 20)
 
 fig, ax = plt.subplots(1, 1)
 plt.ion()
 
+
+class Neuron():
+    def __init__(self):
+        self.activation_threshold = random.randint(5,10)
+        self.voltage = 0.0
+        self.weight = random.uniform(2, 10)
+        self.bias = random.uniform(1, 5)
+        self.leak = 1 - random.uniform(.1, .3)
+    def add_voltage(self, voltage):
+        self.voltage += voltage
+    def attempt_fire(self):
+        if self.voltage >= self.activation_threshold:
+            spike =  self.weight * self.voltage + self.bias
+            self.voltage = 0
+            return spike
+        
+        self.voltage *= self.leak
+        return False
+
 def update_plot():
     ax.cla()
-    ax.axis((0, 20, 0, 20))
+    ax.axis(world_size)
     ax.xaxis.set_major_locator(ticker.MultipleLocator(2))
     ax.yaxis.set_major_locator(ticker.MultipleLocator(2))
     ax.plot(creature_pos[0], creature_pos[1], 'bs')
     ax.plot(food_pos[0], food_pos[1], 'go')
     plt.pause(1)
 
-while not np.array_equal(creature_pos, food_pos):
-    if creature_pos[0] < food_pos[0]:
-        creature_pos[0] += 1
-    elif creature_pos[0] > food_pos[0]:
-        creature_pos[0] -= 1
-    if creature_pos[1] < food_pos[1]:
-        creature_pos[1] += 1
-    elif creature_pos[1] > food_pos[1]:
-        creature_pos[1] -= 1
-    
-    update_plot()
+def smell_food():
+        spike_array = np.zeros(4)
+        x_distance = np.clip(abs(food_pos[0] - creature_pos[0]), 1, 6)
+        y_distance = np.clip(abs(food_pos[1] - creature_pos[1]), 1, 6)
+        if creature_pos[0] < food_pos[0]:
+            spike_array[0] = x_distance
+        elif creature_pos[0] > food_pos[0]:
+            spike_array[1] = x_distance
+        if creature_pos[1] < food_pos[1]:
+            spike_array[2] = y_distance
+        elif creature_pos[1] > food_pos[1]:
+            spike_array[3] = y_distance
+        return spike_array
+
+def main():
+    x_pos = Neuron()
+    x_neg = Neuron()
+    y_pos = Neuron()
+    y_neg = Neuron()
+    neurons = [x_pos, x_neg, y_pos, y_neg]
+
+    while not np.array_equal(creature_pos, food_pos):
+        spike_array = smell_food()
+        for i in range(len(spike_array)):
+            if spike_array[i] != 0:
+                neurons[i].add_voltage(spike_array[i])
+                spike = neurons[i].attempt_fire()
+                if spike:
+                    match i:
+                        case 0:
+                            creature_pos[0] += spike_array[i]
+                        case 1:
+                            creature_pos[0] -= spike_array[i]
+                        case 2:
+                            creature_pos[1] += spike_array[i]
+                        case 3:
+                            creature_pos[1] -= spike_array[i]
+        update_plot()
+
+main()
