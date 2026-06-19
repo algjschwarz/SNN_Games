@@ -5,6 +5,7 @@ import random
 
 creature_pos = np.random.randint(0, 20, size=2)
 food_pos = np.random.randint(0, 20, size=2)
+home_pos = np.random.randint(0, 20, size=2)
 world_size = (0, 20, 0, 20)
 
 fig, ax = plt.subplots(1, 1)
@@ -21,10 +22,8 @@ class Neuron():
         self.voltage += voltage
     def attempt_fire(self):
         if self.voltage >= self.activation_threshold:
-            spike =  self.weight * self.voltage + self.bias
             self.voltage = 0
-            return spike
-        
+            return True
         self.voltage *= self.leak
         return False
     
@@ -34,8 +33,9 @@ def update_plot():
     ax.axis(world_size)
     ax.xaxis.set_major_locator(ticker.MultipleLocator(2))
     ax.yaxis.set_major_locator(ticker.MultipleLocator(2))
-    ax.plot(creature_pos[0], creature_pos[1], 'bs')
-    ax.plot(food_pos[0], food_pos[1], 'go')
+    ax.plot(creature_pos[0], creature_pos[1], 'b^')
+    ax.plot(food_pos[0], food_pos[1], 'ro')
+    ax.plot(home_pos[0], home_pos[1], 'mP')
     plt.pause(1)
 
 class Creature():
