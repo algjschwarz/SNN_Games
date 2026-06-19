@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 import random
-import time
 
 creature_pos = np.random.randint(0, 20, size=2)
 food_pos = np.random.randint(0, 20, size=2)
@@ -10,7 +9,6 @@ world_size = (0, 20, 0, 20)
 
 fig, ax = plt.subplots(1, 1)
 plt.ion()
-
 
 class Neuron():
     def __init__(self):
@@ -29,6 +27,7 @@ class Neuron():
         
         self.voltage *= self.leak
         return False
+    
 
 def update_plot():
     ax.cla()
@@ -39,7 +38,16 @@ def update_plot():
     ax.plot(food_pos[0], food_pos[1], 'go')
     plt.pause(1)
 
-def smell_food():
+class Creature():
+    def __init__(self):
+        self.x_pos = Neuron()
+        self.x_neg = Neuron()
+        self.y_pos = Neuron()
+        self.y_neg = Neuron()
+
+        self.neurons = [self.x_pos, self.x_neg, self.y_pos, self.y_neg]
+
+    def smell_food(self):
         spike_array = np.zeros(4)
         x_distance = np.clip(abs(food_pos[0] - creature_pos[0]), 1, 6)
         y_distance = np.clip(abs(food_pos[1] - creature_pos[1]), 1, 6)
@@ -52,20 +60,12 @@ def smell_food():
         elif creature_pos[1] > food_pos[1]:
             spike_array[3] = y_distance
         return spike_array
-
-def main():
-    x_pos = Neuron()
-    x_neg = Neuron()
-    y_pos = Neuron()
-    y_neg = Neuron()
-    neurons = [x_pos, x_neg, y_pos, y_neg]
-
-    while not np.array_equal(creature_pos, food_pos):
-        spike_array = smell_food()
+    
+    def move_towards_food(self, spike_array):
         for i in range(len(spike_array)):
             if spike_array[i] != 0:
-                neurons[i].add_voltage(spike_array[i])
-                spike = neurons[i].attempt_fire()
+                self.neurons[i].add_voltage(5)
+                spike = self.neurons[i].attempt_fire()
                 if spike:
                     match i:
                         case 0:
@@ -76,6 +76,15 @@ def main():
                             creature_pos[1] += spike_array[i]
                         case 3:
                             creature_pos[1] -= spike_array[i]
+
+
+def main():
+    creature = Creature()
+
+    while not np.array_equal(creature_pos, food_pos):
+        spike_array = creature.smell_food()
+        creature.move_towards_food(spike_array)
+
         update_plot()
 
 main()
