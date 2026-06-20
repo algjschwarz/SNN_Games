@@ -61,6 +61,21 @@ class Creature():
             spike_array[3] = y_distance
         return spike_array
     
+    def sense_home(self):
+        min_distance = 2
+        max_distance = 3
+
+        spike_array = np.zeros(4)
+        x_distance = np.clip(abs(home_pos[0] - creature_pos[0]), 1, 6)
+        y_distance = np.clip(abs(home_pos[1] - creature_pos[1]), 1, 6)
+        distance = np.sqrt(x_distance**2 + y_distance**2)
+
+        if distance in range(min_distance, max_distance):
+            return spike_array
+        
+
+        return spike_array
+
     def move_towards_food(self, spike_array):
         for i in range(len(spike_array)):
             if spike_array[i] != 0:
