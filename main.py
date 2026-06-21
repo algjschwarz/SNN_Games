@@ -24,23 +24,20 @@ class Creature():
         self.energy = 20 
 
     def smell_food(self, foods):
-        spike_array = np.zeros(4)
+        sensory_spike_array = np.zeros(4)
         closest_food = min(foods, key= lambda food: np.linalg.norm(self.position - food.position))
-        print(closest_food.position)
-        pass
-        
-        if self.position[0] < food_pos[0]:
-            spike_array[0] = 1
-        elif self.position[0] > food_pos[0]:
-            spike_array[1] = 1
-        if self.position[1] < food_pos[1]:
-            spike_array[2] = 1
-        elif self.position[1] > food_pos[1]:
-            spike_array[3] = 1
-        return self.hunger * spike_array
+
+        if self.position[0] < closest_food.position[0]: sensory_spike_array[0] = 1
+        elif self.position[0] > closest_food.position[0]: sensory_spike_array[1] = 1
+
+        if self.position[1] < closest_food.position[1]: sensory_spike_array[2] = 1
+        elif self.position[1] > closest_food.position[1]: sensory_spike_array[3] = 1
+
+        return sensory_spike_array
 
     def sense_home(self):
-        min_distance = 2
+        pass
+    """ min_distance = 2
         max_distance = 3
         x_distance = home_pos[0] - self.position[0]
         y_distance = home_pos[1] - self.position[1]
@@ -62,18 +59,26 @@ class Creature():
 
         if self.position[0] == home_pos[0] and self.position[1] == home_pos[1]:
             spike_array[1] = min_distance
-        return spike_array
-    def move(self, spike_array):
-        for i in range(len(spike_array)):
-            if spike_array[i] != 0:
-                self.neurons[i].add_voltage(spike_array[i])
-                spike = self.neurons[i].attempt_fire()
-                if spike:
-                    match i:
-                        case 0: self.position[0] += 1
-                        case 1: self.position[0] -= 1
-                        case 2: self.position[1] += 1
-                        case 3: self.position[1] -= 1
+        return spike_array """
+
+    def think(self, sensory_spike_array):
+        movement_spike_array = np.zeros(4)
+        for i in range(len(sensory_spike_array)):
+            if sensory_spike_array[i] != 0:
+                self.neurons[i].add_voltage(sensory_spike_array[i])
+                if self.neurons[i].attempt_fire():
+                    movement_spike_array[i] = 1
+
+        return movement_spike_array
+
+    def move(self, movement_spike_array):
+        for i in range(len(movement_spike_array)):
+            if movement_spike_array[i] != 0:
+                match i:
+                    case 0: self.position[0] += 1
+                    case 1: self.position[0] -= 1
+                    case 2: self.position[1] += 1
+                    case 3: self.position[1] -= 1
 
 class Food():
     def __init__(self):
@@ -101,11 +106,14 @@ def update_plot(objects):
 def main():
     objects = []
     creatures = [Creature()]
-    foods = [Food()]
+    foods = [Food() for _ in range(3)]
     homes = [Home()]
 
     while True:
-        spike_array = creatures[0].smell_food(foods)
+        objects = creatures + foods + homes
+        sensory_spike_array = creatures[0].smell_food(foods)
+        movement_spike_array = creatures[0].think(sensory_spike_array)
+        creatures[0].move(movement_spike_array)
         
         update_plot(objects)
 main()
