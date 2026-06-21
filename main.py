@@ -1,7 +1,13 @@
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import matplotlib.image as mpimg
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import numpy as np
 import random
+
+CREATURE_IMG = mpimg.imread('sprites/mouse.png')
+FOOD_IMG     = mpimg.imread('sprites/apple.png')
+HOME_IMG     = mpimg.imread('sprites/house.png')
 
 class Neuron():
     def __init__(self):
@@ -60,11 +66,11 @@ class Brain():
 
         return output_spike_array
 
-
 class Creature():
     def __init__(self):
         self.brain = Brain(8)
-        self.format_string = 'b^'
+        self.image = CREATURE_IMG
+        self.zoom = 0.2
         self.position = np.random.randint(0, 20, size=2)
         self.energy = 20 
 
@@ -121,12 +127,14 @@ class Creature():
 class Food():
     def __init__(self):
         self.position = np.random.randint(0, 20, size=2)
-        self.format_string = 'ro'
+        self.image = FOOD_IMG
+        self.zoom = .15
 
 class Home():
     def __init__(self):
         self.position = np.random.randint(0, 20, size=2)
-        self.format_string = 'mP'
+        self.image = HOME_IMG
+        self.zoom = 0.2
 
 fig, ax = plt.subplots(1, 1)
 plt.ion()
@@ -137,9 +145,12 @@ def update_plot(objects):
     ax.axis(world_size)
     ax.xaxis.set_major_locator(ticker.MultipleLocator(2))
     ax.yaxis.set_major_locator(ticker.MultipleLocator(2))
-    for object in objects:
-        ax.plot(object.position[0], object.position[1], object.format_string)
-    plt.pause(1)
+    for obj in objects:
+        ab = AnnotationBbox(OffsetImage(obj.image, zoom=obj.zoom),
+                            (obj.position[0], obj.position[1]),
+                            frameon=False)
+        ax.add_artist(ab)
+    plt.pause(.5)
 
 def main():
     objects = []
