@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 import random
+
 class Neuron():
     def __init__(self):
         self.activation_threshold = 5
@@ -15,10 +16,54 @@ class Neuron():
             return True
         self.voltage *= self.leak
         return False
-    
+
+class Synapse():
+    def __init__(self, source, target, weight):
+        self.source = source
+        self.target = target
+        self.weight = weight
+
+class Brain():
+    def __init__(self, num_of_neurons):
+        self.neurons = [Neuron() for _ in range(num_of_neurons)]
+        self.sensory_neuron_index = [i for i in range(0, 4)]
+        self.motor_neuron_index = [i for i in range(4,8)]
+        self.synapses = [Synapse(self.neurons[i], self.neurons[i + 4], 7) for i in range(4)]
+
+    def propagate(self, neuron, queue) -> list:
+        for synapse in self.synapses:
+            if synapse.source == neuron:
+                if synapse.target:
+                    synapse.target.add_voltage(synapse.weight)
+                    queue.append(synapse.target)
+
+    def step(self, sensory_spike_array) -> np.array:
+        queued_neurons = []
+        output_neuron_index = []
+        output_spike_array = np.zeros(len(self.motor_neuron_index))
+
+        for i in self.sensory_neuron_index:
+            self.neurons[i].add_voltage(sensory_spike_array[i])
+            if self.neurons[i].attempt_fire():
+                self.propagate(self.neurons[i], queued_neurons)
+
+        while len(queued_neurons) != 0:
+            neuron = queued_neurons.pop(0)
+            if neuron.attempt_fire():
+                self.propagate(neuron, queued_neurons)
+                index = self.neurons.index(neuron)
+                if index in self.motor_neuron_index:
+                    output_neuron_index.append(index)
+
+        for i in range(len(output_neuron_index)):
+            output_spike_array[self.motor_neuron_index.index(output_neuron_index[i])] = 1
+
+        return output_spike_array
+
+
 class Creature():
     def __init__(self):
-        self.neurons = [Neuron() for _ in range(4)]
+        self.brain = Brain(8)
         self.format_string = 'b^'
         self.position = np.random.randint(0, 20, size=2)
         self.energy = 20 
@@ -61,19 +106,12 @@ class Creature():
             spike_array[1] = min_distance
         return spike_array """
 
-    def think(self, sensory_spike_array):
-        movement_spike_array = np.zeros(4)
-        for i in range(len(sensory_spike_array)):
-            if sensory_spike_array[i] != 0:
-                self.neurons[i].add_voltage(sensory_spike_array[i])
-                if self.neurons[i].attempt_fire():
-                    movement_spike_array[i] = 1
+    def think(self, sensory_spike_array) -> np.array:
+        return self.brain.step(sensory_spike_array)
 
-        return movement_spike_array
-
-    def move(self, movement_spike_array):
-        for i in range(len(movement_spike_array)):
-            if movement_spike_array[i] != 0:
+    def move(self, movement_commands):
+        for i in range(len(movement_commands)):       
+            if movement_commands[i] != 0:
                 match i:
                     case 0: self.position[0] += 1
                     case 1: self.position[0] -= 1
@@ -111,9 +149,9 @@ def main():
 
     while True:
         objects = creatures + foods + homes
-        sensory_spike_array = creatures[0].smell_food(foods)
-        movement_spike_array = creatures[0].think(sensory_spike_array)
-        creatures[0].move(movement_spike_array)
+        sensory_data = creatures[0].smell_food(foods)
+        movement_data = creatures[0].think(sensory_data)
+        creatures[0].move(movement_data)
         
         update_plot(objects)
 main()
