@@ -10,10 +10,10 @@ FOOD_IMG     = mpimg.imread('sprites/apple.png')
 HOME_IMG     = mpimg.imread('sprites/house.png')
 
 class Neuron():
-    def __init__(self):
-        self.activation_threshold = 5
+    def __init__(self, activation_threshold, leak):
+        self.activation_threshold = activation_threshold
         self.voltage = 0.0
-        self.leak = 0.95
+        self.leak = leak
     def add_voltage(self, voltage):
         self.voltage += voltage
     def attempt_fire(self):
@@ -29,49 +29,73 @@ class Synapse():
         self.target = target
         self.weight = weight
 
-class Brain():
-    def __init__(self, num_of_neurons):
-        self.neurons = [Neuron() for _ in range(num_of_neurons)]
-        self.sensory_neuron_index = [i for i in range(0, 4)]
-        self.motor_neuron_index = [i for i in range(4,8)]
-        self.synapses = [Synapse(self.neurons[i], self.neurons[i + 4], 7) for i in range(4)]
+class Genome():
+    def __init__(self):
+        self.neurons = {}
+        self.synapses = {}
+        self.next_neuron_id = 0
 
-    def propagate(self, neuron, queue) -> list:
-        for synapse in self.synapses:
-            if synapse.source == neuron:
-                if synapse.target:
-                    synapse.target.add_voltage(synapse.weight)
-                    queue.append(synapse.target)
+    def add_neuron(self, neuron_type, activation_threshold, leak):
+        neuron_id = self.next_neuron_id
+        self.next_neuron_id += 1
+        self.neurons[neuron_id] = {"type": neuron_type, "activation_threshold": activation_threshold, "leak": leak}
+
+    def add_synapse(self, in_id, out_id, weight):
+        self.synapses[(in_id, out_id)] = {"weight": weight}
+
+class Brain():
+    def __init__(self, genome):
+        self.genome = genome
+        self.hidden_neurons = []
+        self.sensory_neurons = []
+        self.motor_neurons = []
+        self.synapses = []
+        self.outgoing_synapses = {}
+        for i in range(len(self.genome.neurons)):
+            activation_threshold = self.genome.neurons[i]["activation_threshold"]
+            leak = self.genome.neurons[i]["leak"]
+            if genome.neurons[i]["type"] == "hidden":
+                self.hidden_neurons.append(Neuron(activation_threshold, leak))
+            elif genome.neurons[i]["type"] == "sensory":
+                self.sensory_neurons.append(Neuron(activation_threshold, leak))
+            elif genome.neurons[i]["type"] == "motor":
+                self.motor_neurons.append(Neuron(activation_threshold, leak))
+        for (in_id, out_id), weight in self.genome.synapses:
+            synapse = Synapse(self.synapse(in_id, out_id, weight))
+            self.synapses.append(synapse)
+            if synapse not in self.outgoing_synapses:
+                self.outgoing_synapses[synapse.source] = []
+            self.outgoing_synapses[synapse.source].append(synapse)
+
+    def propagate(self, neuron, queue):
+        for synapse in self.outgoing_synapses.get(neuron, []):
+            queue.append(synapse.target)
 
     def step(self, sensory_spike_array):
         queued_neurons = []
-        output_neuron_index = []
-        output_spike_array = np.zeros(len(self.motor_neuron_index))
+        output_spike_array = np.zeros(len(self.motor_neurons))
         spike_count = 0
 
-        for i in self.sensory_neuron_index:
-            self.neurons[i].add_voltage(sensory_spike_array[i])
-            if self.neurons[i].attempt_fire():
+        for i in range(len(self.sensory_neurons)):
+            self.sensory_neurons[i].add_voltage(sensory_spike_array[i])
+            if self.sensory_neurons[i].attempt_fire():
+                self.propagate(self.sensory_neurons[i], queued_neurons)
                 spike_count += 1
-                self.propagate(self.neurons[i], queued_neurons)
 
         while len(queued_neurons) != 0:
             neuron = queued_neurons.pop(0)
             if neuron.attempt_fire():
-                self.propagate(neuron, queued_neurons)
-                index = self.neurons.index(neuron)
-                if index in self.motor_neuron_index:
-                    spike_count += 1
-                    output_neuron_index.append(index)
-
-        for i in range(len(output_neuron_index)):
-            output_spike_array[self.motor_neuron_index.index(output_neuron_index[i])] = 1
+                if neuron.type == "motor":
+                    output_spike_array[self.motor_neurons.index(neuron)] = 1
+                else:
+                    self.propagate(neuron, queued_neurons)
+                spike_count += 1
 
         return output_spike_array, spike_count
 
 class Creature():
-    def __init__(self):
-        self.brain = Brain(8)
+    def __init__(self, genome):
+        self.brain = Brain(genome)
         self.image = CREATURE_IMG
         self.zoom = 0.2
         self.position = np.random.randint(0, 20, size=2)
@@ -152,6 +176,19 @@ class Home():
         self.image = HOME_IMG
         self.zoom = 0.2
 
+def generate_genome_no_connections(num_input_neurons, num_output_neurons):
+    total_neuron_count = num_input_neurons + num_output_neurons
+    genome = Genome()
+    activation_thresholds = [random.randint(2, 8) for _ in range(total_neuron_count)]
+    leaks = [1 - random.uniform(.1, .3) for _ in range(total_neuron_count)]
+    for i in range(num_input_neurons):
+        genome.add_neuron("sensory", activation_thresholds[0], leaks[0])
+        activation_thresholds.pop(0)
+        leaks.pop(0)
+    for i in range(num_output_neurons):
+        genome.add_neuron("motor", activation_thresholds[i], leaks[i])
+    return genome
+
 fig, ax = plt.subplots(1, 1)
 plt.ion()
 world_size = (0, 20, 0, 20)
@@ -169,8 +206,9 @@ def update_plot(objects):
     plt.pause(.5)
 
 def main():
+    genome = generate_genome_no_connections(4, 4)
     objects = []
-    creatures = [Creature()]
+    creatures = [Creature(genome)]
     foods = [Food() for _ in range(3)]
     homes = [Home()]
 
@@ -182,7 +220,6 @@ def main():
         else:
             movement_data = creatures[0].think(sensory_data)
             creatures[0].move(movement_data)
-        print(creatures[0].energy)
         
         update_plot(objects)
 main()
