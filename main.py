@@ -10,10 +10,11 @@ FOOD_IMG     = mpimg.imread('sprites/apple.png')
 HOME_IMG     = mpimg.imread('sprites/house.png')
 
 class Neuron():
-    def __init__(self, activation_threshold, leak):
+    def __init__(self, activation_threshold, leak, type):
         self.activation_threshold = activation_threshold
         self.voltage = 0.0
         self.leak = leak
+        self.type = type
     def add_voltage(self, voltage):
         self.voltage += voltage
     def attempt_fire(self):
@@ -45,31 +46,38 @@ class Genome():
 
 class Brain():
     def __init__(self, genome):
-        self.genome = genome
         self.hidden_neurons = []
         self.sensory_neurons = []
         self.motor_neurons = []
         self.synapses = []
         self.outgoing_synapses = {}
-        for i in range(len(self.genome.neurons)):
-            activation_threshold = self.genome.neurons[i]["activation_threshold"]
-            leak = self.genome.neurons[i]["leak"]
+
+        neuron_by_id = {}
+        for i in range(len(genome.neurons)):
+            activation_threshold = genome.neurons[i]["activation_threshold"]
+            leak = genome.neurons[i]["leak"]
+            new_neuron = Neuron(activation_threshold, leak, genome.neurons[i]["type"])
+            neuron_by_id[i] = new_neuron
             if genome.neurons[i]["type"] == "hidden":
-                self.hidden_neurons.append(Neuron(activation_threshold, leak))
+                self.hidden_neurons.append(new_neuron)
             elif genome.neurons[i]["type"] == "sensory":
-                self.sensory_neurons.append(Neuron(activation_threshold, leak))
+                self.sensory_neurons.append(new_neuron)
             elif genome.neurons[i]["type"] == "motor":
-                self.motor_neurons.append(Neuron(activation_threshold, leak))
-        for (in_id, out_id), weight in self.genome.synapses:
-            synapse = Synapse(self.synapse(in_id, out_id, weight))
+                self.motor_neurons.append(new_neuron)
+        for synapse_key in genome.synapses.keys():
+            weight = genome.synapses[synapse_key]["weight"]
+            neuron_a = neuron_by_id[synapse_key[0]]
+            neuron_b = neuron_by_id[synapse_key[1]]
+            
+            synapse = Synapse(neuron_a, neuron_b, weight)
             self.synapses.append(synapse)
-            if synapse not in self.outgoing_synapses:
+            if synapse.source not in self.outgoing_synapses:
                 self.outgoing_synapses[synapse.source] = []
             self.outgoing_synapses[synapse.source].append(synapse)
 
     def propagate(self, neuron, queue):
         for synapse in self.outgoing_synapses.get(neuron, []):
-            queue.append(synapse.target)
+            queue.append([synapse.target, synapse.weight])
 
     def step(self, sensory_spike_array):
         queued_neurons = []
@@ -83,7 +91,10 @@ class Brain():
                 spike_count += 1
 
         while len(queued_neurons) != 0:
-            neuron = queued_neurons.pop(0)
+            next = queued_neurons.pop(0)
+            neuron = next[0]
+            weight = next[1]
+            neuron.add_voltage(weight)
             if neuron.attempt_fire():
                 if neuron.type == "motor":
                     output_spike_array[self.motor_neurons.index(neuron)] = 1
@@ -94,11 +105,12 @@ class Brain():
         return output_spike_array, spike_count
 
 class Creature():
-    def __init__(self, genome):
+    def __init__(self, genome, position):
+        self.genome = genome
         self.brain = Brain(genome)
         self.image = CREATURE_IMG
         self.zoom = 0.2
-        self.position = np.random.randint(0, 20, size=2)
+        self.position = position
         self.energy = 20 
 
     def smell_food(self, foods):
@@ -113,12 +125,12 @@ class Creature():
 
         return sensory_spike_array
     
-    def eat_food(self, sensory_spike_array):
-        if max(sensory_spike_array) == 0:
-            energy = self.energy + 20
-            self.energy = max(0, min(energy, 30))
-            return True
-        return False
+    def eat_food(self, foods):
+        for food in foods:
+            if np.array_equal(self.position, food.position):
+                self.energy = min(self.energy + 20, 30)
+                return food
+        return None
 
     def sense_home(self):
         pass
@@ -182,12 +194,36 @@ def generate_genome_no_connections(num_input_neurons, num_output_neurons):
     activation_thresholds = [random.randint(2, 8) for _ in range(total_neuron_count)]
     leaks = [1 - random.uniform(.1, .3) for _ in range(total_neuron_count)]
     for i in range(num_input_neurons):
-        genome.add_neuron("sensory", activation_thresholds[0], leaks[0])
-        activation_thresholds.pop(0)
-        leaks.pop(0)
+        genome.add_neuron("sensory", activation_thresholds.pop(0), leaks.pop(0))
     for i in range(num_output_neurons):
-        genome.add_neuron("motor", activation_thresholds[i], leaks[i])
+        genome.add_neuron("motor", activation_thresholds.pop(0), leaks.pop(0))
     return genome
+
+def mutate_genome(genome) -> Genome:
+    probability = random.random()
+
+    if probability <= 0.30:
+        activation_threshold = random.randint(2, 8)
+        leak = 1 - random.uniform(.1, .3)
+        genome.add_neuron("hidden", activation_threshold, leak)
+    elif probability <= 0.70:
+        neuron_a_key, neuron_b_key = random.sample(list(genome.neurons.keys()), 2)
+        weight = random.randint(-5, 5)
+        genome.add_synapse(neuron_a_key, neuron_b_key, weight)
+    elif probability <= 0.85:
+        synapse_key = random.choice(list(genome.synapses.keys()))
+        weight = random.randint(-2, 2)
+        genome.synapses[synapse_key]["weight"] += weight
+    elif probability <= 0.90:
+        neuron_key = random.choice(list(genome.neurons.keys()))
+        leak = random.uniform(-.1, .1)
+        genome.neurons[neuron_key]["leak"] = max(genome.neurons[neuron_key]["leak"] + leak, .1)
+    else:
+        neuron_key = random.choice(list(genome.neurons.keys()))
+        delta = random.randint(-2, 2)
+        genome.neurons[neuron_key]["activation_threshold"] = max(genome.neurons[neuron_key]["activation_threshold"] + delta, 1)
+    return genome
+
 
 fig, ax = plt.subplots(1, 1)
 plt.ion()
@@ -203,23 +239,32 @@ def update_plot(objects):
                             (obj.position[0], obj.position[1]),
                             frameon=False)
         ax.add_artist(ab)
-    plt.pause(.5)
+    plt.pause(.001)
 
 def main():
     genome = generate_genome_no_connections(4, 4)
+    position = np.random.randint(0, 20, size=2)
     objects = []
-    creatures = [Creature(genome)]
+    creatures = [Creature(genome, position)]
     foods = [Food() for _ in range(3)]
     homes = [Home()]
 
     while foods:
-        objects = creatures + foods + homes
         sensory_data = creatures[0].smell_food(foods)
-        if creatures[0].eat_food(sensory_data):
-            foods = [f for f in foods if not np.array_equal(creatures[0].position, f.position)]
+        eaten_food = creatures[0].eat_food(foods)
+        if eaten_food:
+            foods = [food for food in foods if food is not eaten_food]
         else:
             movement_data = creatures[0].think(sensory_data)
             creatures[0].move(movement_data)
         
+        for _ in range(len(creatures)):
+            creature = creatures.pop(0)
+            position = creature.position.copy()
+            genome = creature.genome
+            mutated_genome = mutate_genome(genome)
+            creatures.append(Creature(mutated_genome, position))
+
+        objects = creatures + foods + homes
         update_plot(objects)
 main()
