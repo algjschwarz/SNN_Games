@@ -4,6 +4,7 @@ import matplotlib.image as mpimg
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import numpy as np
 import random
+import math
 from dataclasses import dataclass
 
 CREATURE_IMG = mpimg.imread('sprites/mouse.png')
@@ -11,11 +12,12 @@ FOOD_IMG     = mpimg.imread('sprites/apple.png')
 HOME_IMG     = mpimg.imread('sprites/house.png')
 
 class Neuron():
-    def __init__(self, activation_threshold, leak, type):
+    def __init__(self, activation_threshold, leak, type, transmitter="excitatory"):
         self.activation_threshold = activation_threshold
         self.voltage = 0.0
         self.leak = leak
         self.type = type
+        self.transmitter = transmitter
     def add_voltage(self, voltage):
         self.voltage += voltage
     def attempt_fire(self):
@@ -212,27 +214,52 @@ def generate_genome_no_connections(num_input_neurons, num_output_neurons):
         genome.add_neuron("motor", activation_thresholds.pop(0), leaks.pop(0))
     return genome
 
+def type_compatible(neuron_source, neuron_target) -> bool: 
+    match neuron_source.type:
+        case "hidden": 
+            return True
+        case "motor" | "sensory":
+            if neuron_target.type == "hidden":
+                return True
+            else:
+                return False
+        case _:
+            raise Exception("no or wrong type given for neuron")
+
+def transmitter_weight_positive_or_negative(transmitter) -> int:
+    if transmitter == "excitatory":
+        return 1
+    else:
+        return -1
+
 def mutate_genome(genome) -> Genome:
     probability = random.random()
+    get_neuron_key = lambda: random.choice(list(genome.neurons.keys()))
 
     if probability <= 0.30:
         activation_threshold = random.randint(2, 8)
         leak = 1 - random.uniform(.1, .3)
         genome.add_neuron("hidden", activation_threshold, leak)
     elif probability <= 0.70:
-        neuron_a_key, neuron_b_key = random.sample(list(genome.neurons.keys()), 2)
-        weight = random.randint(-5, 5)
+        compatible = False
+        while(not compatible):
+            (neuron_a_key, neuron_a_gene), (neuron_b_key, neuron_b_gene) = random.sample(list(genome.neurons.items()), 2)
+            compatible = type_compatible(neuron_a_gene, neuron_b_gene)
+        weight = random.randint(1, 3) * transmitter_weight_positive_or_negative(neuron_a_gene.transmitter)
         genome.add_synapse(neuron_a_key, neuron_b_key, weight)
     elif probability <= 0.85:
-        synapse_key = random.choice(list(genome.synapses.keys()))
-        weight = random.randint(1, 2)
-        genome.synapses[synapse_key]["weight"] += weight
+        genome_keys = list(genome.synapses.keys())
+        if not genome_keys:
+            return genome
+        synapse_key = random.choice(genome_keys)
+        new_weight = math.copysign(random.randint(1, 2), genome.synapses[synapse_key]["weight"])
+        genome.synapses[synapse_key]["weight"] += new_weight
     elif probability <= 0.90:
-        neuron_key = random.choice(list(genome.neurons.keys()))
+        neuron_key = get_neuron_key()
         leak = random.uniform(-.1, .1)
-        genome.neurons[neuron_key]["leak"] = max(genome.neurons[neuron_key]["leak"] + leak, .1)
+        genome.neurons[neuron_key]["leak"] = max(genome.neurons[neuron_key]["leak"] + leak, .7)
     else:
-        neuron_key = random.choice(list(genome.neurons.keys()))
+        neuron_key = get_neuron_key()
         delta = random.randint(-2, 2)
         genome.neurons[neuron_key]["activation_threshold"] = max(genome.neurons[neuron_key]["activation_threshold"] + delta, 1)
     return genome
