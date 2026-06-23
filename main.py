@@ -4,6 +4,7 @@ import matplotlib.image as mpimg
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import numpy as np
 import random
+from dataclasses import dataclass
 
 CREATURE_IMG = mpimg.imread('sprites/mouse.png')
 FOOD_IMG     = mpimg.imread('sprites/apple.png')
@@ -24,11 +25,23 @@ class Neuron():
         self.voltage *= self.leak
         return False
 
-class Synapse():
-    def __init__(self, source, target, weight):
-        self.source = source
-        self.target = target
-        self.weight = weight
+@dataclass
+class NeuronGene:
+    type: str
+    activation_threshold: float
+    leak: float
+    transmitter: str = "excitatory"
+
+    def __getitem__(self, key):
+        return getattr(self, key)
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
+
+@dataclass
+class Synapse:
+    source: object
+    target: object
+    weight: float
 
 class Genome():
     def __init__(self):
@@ -36,10 +49,10 @@ class Genome():
         self.synapses = {}
         self.next_neuron_id = 0
 
-    def add_neuron(self, neuron_type, activation_threshold, leak):
+    def add_neuron(self, neuron_type, activation_threshold, leak, transmitter="excitatory"):
         neuron_id = self.next_neuron_id
         self.next_neuron_id += 1
-        self.neurons[neuron_id] = {"type": neuron_type, "activation_threshold": activation_threshold, "leak": leak}
+        self.neurons[neuron_id] = NeuronGene(neuron_type, activation_threshold, leak, transmitter)
 
     def add_synapse(self, in_id, out_id, weight):
         self.synapses[(in_id, out_id)] = {"weight": weight}
@@ -191,7 +204,7 @@ class Home():
 def generate_genome_no_connections(num_input_neurons, num_output_neurons):
     total_neuron_count = num_input_neurons + num_output_neurons
     genome = Genome()
-    activation_thresholds = [random.randint(2, 8) for _ in range(total_neuron_count)]
+    activation_thresholds = [1 for _ in range(total_neuron_count)]
     leaks = [1 - random.uniform(.1, .3) for _ in range(total_neuron_count)]
     for i in range(num_input_neurons):
         genome.add_neuron("sensory", activation_thresholds.pop(0), leaks.pop(0))
@@ -212,7 +225,7 @@ def mutate_genome(genome) -> Genome:
         genome.add_synapse(neuron_a_key, neuron_b_key, weight)
     elif probability <= 0.85:
         synapse_key = random.choice(list(genome.synapses.keys()))
-        weight = random.randint(-2, 2)
+        weight = random.randint(1, 2)
         genome.synapses[synapse_key]["weight"] += weight
     elif probability <= 0.90:
         neuron_key = random.choice(list(genome.neurons.keys()))
@@ -240,6 +253,10 @@ def update_plot(objects):
                             frameon=False)
         ax.add_artist(ab)
     plt.pause(.001)
+
+def simulate(time_steps):
+    for _ in range(time_steps):
+        pass
 
 def main():
     genome = generate_genome_no_connections(4, 4)
