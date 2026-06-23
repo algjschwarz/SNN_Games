@@ -218,11 +218,16 @@ def type_compatible(neuron_source, neuron_target) -> bool:
     match neuron_source.type:
         case "hidden": 
             return True
-        case "motor" | "sensory":
-            if neuron_target.type == "hidden":
-                return True
-            else:
+        case "motor":
+            if neuron_target.type == "motor":
                 return False
+            else:
+                return True
+        case "sensory":
+            if neuron_target.type == "sensory":
+                return False
+            else:
+                return True
         case _:
             raise Exception("no or wrong type given for neuron")
 
@@ -237,9 +242,10 @@ def mutate_genome(genome) -> Genome:
     get_neuron_key = lambda: random.choice(list(genome.neurons.keys()))
 
     if probability <= 0.30:
+        transmitter = random.choices(["inhibitory", "excitatory"], weights=[1, 9])
         activation_threshold = random.randint(2, 8)
         leak = 1 - random.uniform(.1, .3)
-        genome.add_neuron("hidden", activation_threshold, leak)
+        genome.add_neuron("hidden", activation_threshold, leak, transmitter)
     elif probability <= 0.70:
         compatible = False
         while(not compatible):
