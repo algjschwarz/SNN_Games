@@ -120,12 +120,12 @@ class Brain():
         return output_spike_array, spike_count
 
 class Creature():
-    def __init__(self, genome):
+    def __init__(self, genome, world_size=(0,20,0,20)):
         self.genome = genome
         self.brain = Brain(genome)
         self.image = CREATURE_IMG
         self.zoom = 0.2
-        self.position = np.random.randint(0, 20, size=2)
+        self.position = np.random.randint(world_size[0], world_size[1], size=2)
         self.energy = 20 
 
     def is_dead(self) -> bool:
@@ -198,14 +198,14 @@ class Creature():
             self.energy -= 1
 
 class Food():
-    def __init__(self):
-        self.position = np.random.randint(0, 20, size=2)
+    def __init__(self, world_size=(0,20,0,20)):
+        self.position = np.random.randint(world_size[0], world_size[1], size=2)
         self.image = FOOD_IMG
         self.zoom = .15
 
 class Home():
-    def __init__(self):
-        self.position = np.random.randint(0, 20, size=2)
+    def __init__(self, world_size=(0,20,0,20)):
+        self.position = np.random.randint(world_size[0], world_size[1], size=2)
         self.image = HOME_IMG
         self.zoom = 0.2
 
@@ -297,13 +297,13 @@ class World():
 
 class Simulation():
     def __init__(self, num_creatures=1, num_foods=3, num_homes=1, generations=10, time_steps=20):
-        self.world = World()
+        self.world = World(world_size=(0, 100, 0, 100))
         self.num_creatures = num_creatures
         self.num_foods = num_foods
         self.num_homes = num_homes
-        self.creatures = [Creature(generate_genome_no_connections(4, 4)) for _ in range(num_creatures)]
-        self.foods = [Food() for _ in range(num_foods)]
-        self.homes = [Home() for _ in range(num_homes)]
+        self.creatures = [Creature(generate_genome_no_connections(4, 4), world_size=self.world.world_size) for _ in range(num_creatures)]
+        self.foods = [Food(world_size=self.world.world_size) for _ in range(num_foods)]
+        self.homes = [Home(world_size=self.world.world_size) for _ in range(num_homes)]
         self.generations = generations
         self.time_steps = time_steps
 
@@ -319,7 +319,7 @@ class Simulation():
     
     def __evolve_creatures(self):
         for i in range(len(self.creatures)):
-            self.creatures[i] = Creature(mutate_genome(self.creatures[i].genome))
+            self.creatures[i] = Creature(mutate_genome(self.creatures[i].genome), world_size=self.world.world_size)
 
     def __run_generation(self):
         objects = self.creatures + self.foods + self.homes
@@ -327,17 +327,19 @@ class Simulation():
         for _ in range(self.time_steps):
             for i in range(len(self.creatures)):
                 self.__simulate_creature(self.creatures[i])
-            self.creatures = [creature for creature in self.creatures if not creature.is_dead()]
             objects = self.creatures + self.foods + self.homes
             self.world.update_plot(objects)
 
+    def __determine_fitness(self) -> dict:
+        pass
+        
     def run_simulation(self):
         for _ in range(self.generations):
             self.__run_generation()
             self.__evolve_creatures()
 
 def main():
-    simulation = Simulation(num_creatures=3)
+    simulation = Simulation(num_creatures=20, num_foods=10)
     simulation.run_simulation()
 
 main()
