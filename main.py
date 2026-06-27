@@ -5,6 +5,7 @@ from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import numpy as np
 import random
 import math
+import operator
 from dataclasses import dataclass
 
 CREATURE_IMG = mpimg.imread('sprites/mouse.png')
@@ -296,9 +297,11 @@ class World():
         plt.pause(.2)
 
 class Simulation():
-    def __init__(self, num_creatures=1, num_foods=3, num_homes=1, generations=10, time_steps=20):
+    def __init__(self, num_creatures=1, num_foods=3, num_homes=1, generations=10, time_steps=20, proportion_lost_each_generation=0.5):
         self.world = World(world_size=(0, 100, 0, 100))
         self.num_creatures = num_creatures
+        if self.num_creatures % 2 == 1:
+            raise Exception('Number of Creatures must be even.')
         self.num_foods = num_foods
         self.num_homes = num_homes
         self.creatures = [Creature(generate_genome_no_connections(4, 4), world_size=self.world.world_size) for _ in range(num_creatures)]
@@ -306,20 +309,25 @@ class Simulation():
         self.homes = [Home(world_size=self.world.world_size) for _ in range(num_homes)]
         self.generations = generations
         self.time_steps = time_steps
-
+        self.proportion_lost_each_generation = proportion_lost_each_generation
+        self.fitness_tracker = {}
+        
     def __simulate_creature(self, creature):
         foods = self.foods
         sensory_data = creature.smell_food(foods)
         eaten_food = creature.eat_food(foods)
         if eaten_food:
             foods = [food for food in foods if food is not eaten_food]
-        else:
-            movement_data = creature.think(sensory_data)
-            creature.move(movement_data)
+            self.fitness_tracker[creature] += 1
+            return
+        movement_data = creature.think(sensory_data)
+        creature.move(movement_data)
     
-    def __evolve_creatures(self):
-        for i in range(len(self.creatures)):
-            self.creatures[i] = Creature(mutate_genome(self.creatures[i].genome), world_size=self.world.world_size)
+    def __evolve_creatures(self, creatures=None):
+        if not creatures:
+            creatures = self.creatures
+        for i in range(len(creatures)):
+            creatures[i] = Creature(mutate_genome(creatures[i].genome), world_size=self.world.world_size)
 
     def __run_generation(self):
         objects = self.creatures + self.foods + self.homes
@@ -330,13 +338,27 @@ class Simulation():
             objects = self.creatures + self.foods + self.homes
             self.world.update_plot(objects)
 
-    def __determine_fitness(self) -> dict:
+    def __natural_selection(self):
+        amount_needed = int(self.proportion_lost_each_generation * self.num_creatures)
+        if len(self.fitness_tracker) != 0:
+            fit_creatures = dict(sorted(self.fitness_tracker.items(), key=operator.itemgetter(1)))
+        else:
+            fit_creatures = {}
+        fit_creatures = list(fit_creatures.keys())
+        unfit_creatures = list(set(self.creatures) - set(fit_creatures))
+        fit_creatures = unfit_creatures + fit_creatures
+        self.creatures = fit_creatures[amount_needed:]
+
+    def __breed_new_generation() -> list:
         pass
-        
+
     def run_simulation(self):
         for _ in range(self.generations):
             self.__run_generation()
-            self.__evolve_creatures()
+            self.__natural_selection()
+            new_generation = self.__breed_new_generation()
+            self.__evolve_creatures(creatures=new_generation)
+            self.fitness_tracker = {}
 
 def main():
     simulation = Simulation(num_creatures=20, num_foods=10)
