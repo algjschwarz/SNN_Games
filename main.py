@@ -349,8 +349,10 @@ class Simulation():
         fit_creatures = unfit_creatures + fit_creatures
         self.creatures = fit_creatures[amount_needed:]
 
-    def __breed_new_generation() -> list:
-        pass
+    def __breed_new_generation(self) -> list:
+        for i in range(len(self.creatures), 2) :
+            creature_a = self.creatures[i]
+            creature_b = self.creatures[i+1]
 
     def run_simulation(self):
         for _ in range(self.generations):
