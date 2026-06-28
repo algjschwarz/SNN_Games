@@ -41,6 +41,15 @@ class NeuronGene:
         setattr(self, key, value)
 
 @dataclass
+class SynapseGene:
+    weight: float
+    genetic_marker = None
+    def __getitem__(self, key):
+        return getattr(self, key)
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
+
+@dataclass
 class Synapse:
     source: object
     target: object
@@ -58,7 +67,7 @@ class Genome():
         self.neurons[neuron_id] = NeuronGene(neuron_type, activation_threshold, leak, transmitter)
 
     def add_synapse(self, in_id, out_id, weight):
-        self.synapses[(in_id, out_id)] = {"weight": weight}
+        self.synapses[(in_id, out_id)] = SynapseGene(weight)
 
 class Brain():
     def __init__(self, genome):
@@ -210,7 +219,7 @@ class Home():
         self.image = HOME_IMG
         self.zoom = 0.2
 
-def generate_genome_no_connections(num_input_neurons, num_output_neurons):
+def generate_genome_no_connections(num_input_neurons=4, num_output_neurons=4):
     total_neuron_count = num_input_neurons + num_output_neurons
     genome = Genome()
     activation_thresholds = [1 for _ in range(total_neuron_count)]
@@ -309,6 +318,7 @@ class Simulation():
         self.homes = [Home(world_size=self.world.world_size) for _ in range(num_homes)]
         self.generations = generations
         self.time_steps = time_steps
+        self.genetic_marker_tracker = 0
         self.proportion_lost_each_generation = proportion_lost_each_generation
         self.fitness_tracker = {}
         
@@ -323,11 +333,13 @@ class Simulation():
         movement_data = creature.think(sensory_data)
         creature.move(movement_data)
     
-    def __evolve_creatures(self, creatures=None):
+    def __grow_and_evolve_creatures(self, creatures=None) -> list:
+        new_creatures = []
         if not creatures:
             creatures = self.creatures
         for i in range(len(creatures)):
-            creatures[i] = Creature(mutate_genome(creatures[i].genome), world_size=self.world.world_size)
+            new_creatures.append(Creature(mutate_genome(creatures[i].genome), world_size=self.world.world_size))
+        return new_creatures
 
     def __run_generation(self):
         objects = self.creatures + self.foods + self.homes
@@ -349,17 +361,89 @@ class Simulation():
         fit_creatures = unfit_creatures + fit_creatures
         self.creatures = fit_creatures[amount_needed:]
 
-    def __breed_new_generation(self) -> list:
-        for i in range(len(self.creatures), 2) :
+    def __clone_top_half_old_generation(self) -> list:
+        return self.creatures[int(self.num_creatures * (self.proportion_lost_each_generation**2)):]
+
+    def __breed_new_generation(self, probability_for_fittest_genes=0.8) -> list:
+        new_generation = []
+        for i in range(0, len(self.creatures), 2) :
             creature_a = self.creatures[i]
             creature_b = self.creatures[i+1]
+            creature_a_genome = creature_a.genome
+            creature_b_genome = creature_b.genome
+            new_genome = Genome()
+            synapse_a_created_ids = []
+            synapse_b_created_ids = []
+            neuron_a_created_ids = []
+            neuron_b_created_ids = []
+
+            for ((neuron_gene_a_1id, neuron_gene_a_2id), synapse_gene_a) in creature_a_genome.synapses.items():
+                if synapse_gene_a.genetic_marker:
+                    for ((neuron_gene_b_1id, neuron_gene_b_2id), synapse_gene_b) in creature_b_genome.synapses.items():
+                        if synapse_gene_b.genetic_marker == synapse_gene_a.genetic_marker:
+                            if neuron_gene_b_1id not in neuron_b_created_ids:
+                                new_neuron_gene_1 = NeuronGene(creature_b.genome.neurons[neuron_gene_b_1id])
+                                new_genome.add_neuron(new_neuron_gene_1)
+                                neuron_a_created_ids.append(neuron_gene_a_1id)
+                                neuron_b_created_ids.append(neuron_gene_b_1id)
+                            if neuron_gene_b_2id not in neuron_b_created_ids:
+                                new_neuron_gene_2 = NeuronGene(creature_b.genome.neurons[neuron_gene_b_2id])
+                                new_genome.add_neuron(new_neuron_gene_2)
+                                neuron_a_created_ids.append(neuron_gene_a_2id)
+                                neuron_b_created_ids.append(neuron_gene_b_2id)
+                            synapse_a_created_ids.append((neuron_gene_a_1id, neuron_gene_a_2id))
+                            synapse_b_created_ids.append((neuron_gene_b_1id, neuron_gene_b_2id))
+                            new_genome.add_synapse(neuron_gene_b_1id, neuron_gene_b_2id)
+
+            synapse_a_uncreated_ids = list(set(creature_a_genome.synapses.keys()) - set(synapse_a_created_ids))
+            synapse_b_uncreated_ids = list(set(creature_b_genome.synapses.keys()) - set(synapse_b_created_ids))
+            neuron_a_uncreated_ids = list(set(creature_a_genome.neurons.keys()) - set(neuron_a_created_ids))
+            neuron_b_uncreated_ids = list(set(creature_b_genome.neurons.keys()) - set(neuron_b_created_ids))
+            
+            b_gene_probability = 0.50
+            same_fitnesss = self.fitness_tracker.get(creature_a) == self.fitness_tracker.get(creature_b)
+            if not same_fitnesss and self.fitness_tracker.get(creature_b) != None:
+                b_gene_probability = probability_for_fittest_genes
+            new_synapses_a = [synapse for synapse in synapse_a_uncreated_ids if random.random() <= 1 - b_gene_probability]
+            new_synapses_b = [synapse for synapse in synapse_b_uncreated_ids if random.random() <= b_gene_probability]
+            for (id_1, id_2) in new_synapses_a:
+                neuron_a = creature_a_genome.neurons[id_1]
+                neuron_b = creature_a_genome.neurons[id_2]
+                if neuron_a in neuron_a_uncreated_ids:
+                    new_genome.add_neuron(neuron_a)
+                    neuron_a_uncreated_ids.pop(neuron_a)
+                if neuron_b in neuron_a_uncreated_ids:
+                    new_genome.add_neuron(neuron_b)
+                    neuron_a_uncreated_ids.pop(neuron_b)
+                new_genome.add_synapse(id_2, id_2)
+                new_genome.synapses[(id_1, id_2)].genetic_marker = self.genetic_marker_tracker
+                self.genetic_marker_tracker += 1
+
+            for (id_1, id_2) in new_synapses_b:
+                neuron_a = creature_b_genome.neurons[id_1]
+                neuron_b = creature_b_genome.neurons[id_2]
+                if neuron_a in neuron_b_uncreated_ids:
+                    new_genome.add_neuron(neuron_a)
+                    neuron_b_uncreated_ids.pop(neuron_b)
+                if neuron_b in neuron_b_uncreated_ids:
+                    new_genome.add_neuron(neuron_b)
+                    neuron_b_uncreated_ids.pop(neuron_b)
+                new_genome.add_synapse(id_2, id_2)
+                new_genome.synapses[(id_1, id_2)].genetic_marker = self.genetic_marker_tracker
+                self.genetic_marker_tracker += 1
+
+            
+            new_generation.append(Creature(new_genome))
+        return new_generation
 
     def run_simulation(self):
         for _ in range(self.generations):
             self.__run_generation()
             self.__natural_selection()
+            clone_generation = self.__clone_top_half_old_generation()
             new_generation = self.__breed_new_generation()
-            self.__evolve_creatures(creatures=new_generation)
+            new_creatures = self.__grow_and_evolve_creatures(creatures=clone_generation + new_generation)
+            self.creatures += new_creatures
             self.fitness_tracker = {}
 
 def main():
