@@ -61,10 +61,16 @@ class Genome():
         self.synapses = {}
         self.next_neuron_id = 0
 
-    def add_neuron(self, neuron_type, activation_threshold, leak, transmitter="excitatory"):
+    def add_neuron(self, *args):
+        if len(args) == 1 and isinstance(args[0], NeuronGene):
+            gene = args[0]
+        else:
+            gene = NeuronGene(*args)
         neuron_id = self.next_neuron_id
         self.next_neuron_id += 1
-        self.neurons[neuron_id] = NeuronGene(neuron_type, activation_threshold, leak, transmitter)
+        self.neurons[neuron_id] = gene
+        return neuron_id
+
 
     def add_synapse(self, in_id, out_id, weight):
         self.synapses[(in_id, out_id)] = SynapseGene(weight)
@@ -431,6 +437,19 @@ class Simulation():
                 new_genome.add_synapse(id_2, id_2)
                 new_genome.synapses[(id_1, id_2)].genetic_marker = self.genetic_marker_tracker
                 self.genetic_marker_tracker += 1
+            
+            for neuron_id in neuron_a_uncreated_ids:
+                neuron_genome = creature_a_genome.neurons[neuron_id]
+                if neuron_genome.type == "hidden" and random.random() >= 0.2:
+                    new_genome.add_neuron(neuron_genome)
+               
+
+            for neuron_id in neuron_b_uncreated_ids:
+                neuron_genome = creature_b_genome.neurons[neuron_id]
+                if neuron_genome.type != "hidden":
+                    new_genome.add_neuron(neuron_genome)
+                elif random.random() >= .2:
+                    new_genome.add_neuron(neuron_genome)
 
             
             new_generation.append(Creature(new_genome))
