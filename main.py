@@ -112,7 +112,7 @@ class Brain():
         for synapse in self.outgoing_synapses.get(neuron, []):
             queue.append([synapse.target, synapse.weight])
 
-    def step(self, sensory_spike_array):
+    def step(self, sensory_spike_array, max_spikes=1000):
         queued_neurons = []
         output_spike_array = np.zeros(len(self.motor_neurons))
         spike_count = 0
@@ -123,7 +123,7 @@ class Brain():
                 self.propagate(self.sensory_neurons[i], queued_neurons)
                 spike_count += 1
 
-        while len(queued_neurons) != 0:
+        while len(queued_neurons) != 0 and spike_count < max_spikes:
             next = queued_neurons.pop(0)
             neuron = next[0]
             weight = next[1]
@@ -134,6 +134,9 @@ class Brain():
                 else:
                     self.propagate(neuron, queued_neurons)
                 spike_count += 1
+
+        if spike_count >= max_spikes:
+            print("max spikes reached")
 
         return output_spike_array, spike_count
 
