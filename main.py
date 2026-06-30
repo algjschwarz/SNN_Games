@@ -315,7 +315,7 @@ class World():
 
 class Simulation():
     def __init__(self, num_creatures=1, num_foods=3, num_homes=1, generations=10, time_steps=20, proportion_lost_each_generation=0.5):
-        self.world = World(world_size=(0, 100, 0, 100))
+        self.world = World(world_size=(0, 50, 0, 50))
         self.num_creatures = num_creatures
         if self.num_creatures % 2 == 1:
             raise Exception('Number of Creatures must be even.')
@@ -329,17 +329,19 @@ class Simulation():
         self.genetic_marker_tracker = 0
         self.proportion_lost_each_generation = proportion_lost_each_generation
         self.fitness_tracker = defaultdict(int)
-        
-    def __simulate_creature(self, creature):
-        foods = self.foods
-        sensory_data = creature.smell_food(foods)
-        eaten_food = creature.eat_food(foods)
-        if eaten_food:
-            foods = [food for food in foods if food is not eaten_food]
+    
+    def __determine_fitness(self, creature, *, ate_food: bool = False, novelty: float = 0.0) -> None:
+        if ate_food:
             self.fitness_tracker[creature] += 1
-            return
+
+    def __simulate_creature(self, creature):
+        sensory_data = creature.smell_food(self.foods)
+        eaten_food = creature.eat_food(self.foods)
+        if eaten_food:
+            self.foods = [food for food in self.foods if food is not eaten_food]
         movement_data = creature.think(sensory_data)
         creature.move(movement_data)
+        self.__determine_fitness(creature, ate_food=eaten_food)
     
     def __grow_and_evolve_creatures(self, creatures=None) -> list:
         new_creatures = []
@@ -505,7 +507,7 @@ class Simulation():
             self.fitness_tracker = defaultdict(int)
 
 def main():
-    simulation = Simulation(num_creatures=20, num_foods=10)
+    simulation = Simulation(num_creatures=20, num_foods=20, generations=400)
     simulation.run_simulation()
 
 main()
