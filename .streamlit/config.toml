@@ -1,6 +1,0 @@
-[theme]
-base = "dark"
-backgroundColor = "#0A192F"          # Deep navy blue for the main background
-secondaryBackgroundColor = "#172A45" # Slightly lighter navy for the sidebar/widgets
-textColor = "#F8FAFC"                # Off-white text for high readability
-primaryColor = "#00B4D8"             # Electric cyan/blue for buttons and highlights

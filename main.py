@@ -12,7 +12,6 @@ from dataclasses import dataclass
 
 CREATURE_IMG = mpimg.imread('sprites/mouse.png')
 FOOD_IMG     = mpimg.imread('sprites/apple.png')
-HOME_IMG     = mpimg.imread('sprites/house.png')
 
 class Neuron():
     def __init__(self, activation_threshold, leak, type, transmitter="excitatory"):
@@ -174,32 +173,6 @@ class Creature():
                 return food
         return None
 
-    def sense_home(self):
-        pass
-    """ min_distance = 2
-        max_distance = 3
-        x_distance = home_pos[0] - self.position[0]
-        y_distance = home_pos[1] - self.position[1]
-        spike_array = np.zeros(4)
-        x_distance_capped = np.clip(abs(x_distance), 1, 6)
-        y_distance_capped = np.clip(abs(y_distance), 1, 6)
-        distance = np.sqrt(x_distance**2 + y_distance**2)
-        if distance in range(min_distance, max_distance):
-            return spike_array
-        if self.position[0] < home_pos[0]:
-            spike_array[0] = x_distance_capped
-        elif self.position[0] > home_pos[0]:
-            spike_array[1] = x_distance_capped
-
-        if self.position[1] < home_pos[1]:
-            spike_array[2] = y_distance_capped
-        elif self.position[1] > home_pos[1]:
-            spike_array[3] = y_distance_capped
-
-        if self.position[0] == home_pos[0] and self.position[1] == home_pos[1]:
-            spike_array[1] = min_distance
-        return spike_array """
-
     def think(self, sensory_spike_array) -> np.array:
         movement_commands, spike_count = self.brain.step(sensory_spike_array)
         self.energy -= spike_count * .1
@@ -223,12 +196,6 @@ class Food():
         self.position = np.random.randint(world_size[0], world_size[1], size=2)
         self.image = FOOD_IMG
         self.zoom = .15
-
-class Home():
-    def __init__(self, world_size=(0,20,0,20)):
-        self.position = np.random.randint(world_size[0], world_size[1], size=2)
-        self.image = HOME_IMG
-        self.zoom = 0.2
 
 def generate_genome_no_connections(num_input_neurons=4, num_output_neurons=4):
     total_neuron_count = num_input_neurons + num_output_neurons
@@ -317,16 +284,14 @@ class World():
         plt.pause(.2)
 
 class Simulation():
-    def __init__(self, num_creatures=1, num_foods=3, num_homes=1, generations=10, time_steps=20, proportion_lost_each_generation=0.5):
+    def __init__(self, num_creatures=1, num_foods=3, generations=10, time_steps=20, proportion_lost_each_generation=0.5):
         self.world = World(world_size=(0, 50, 0, 50))
         self.num_creatures = num_creatures
         if self.num_creatures % 2 == 1:
             raise Exception('Number of Creatures must be even.')
         self.num_foods = num_foods
-        self.num_homes = num_homes
         self.creatures = [Creature(generate_genome_no_connections(4, 4), world_size=self.world.world_size) for _ in range(num_creatures)]
         self.foods = [Food(world_size=self.world.world_size) for _ in range(num_foods)]
-        self.homes = [Home(world_size=self.world.world_size) for _ in range(num_homes)]
         self.generations = generations
         self.time_steps = time_steps
         self.genetic_marker_tracker = 0
@@ -355,12 +320,12 @@ class Simulation():
         return new_creatures
 
     def __run_generation(self):
-        objects = self.creatures + self.foods + self.homes
+        objects = self.creatures + self.foods
         self.world.update_plot(objects)
         for _ in range(self.time_steps):
             for i in range(len(self.creatures)):
                 self.__simulate_creature(self.creatures[i])
-            objects = self.creatures + self.foods + self.homes
+            objects = self.creatures + self.foods
             self.world.update_plot(objects)
 
     def __natural_selection(self):
